@@ -389,7 +389,9 @@ class TaskScreen4(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent)
         self.data_about_rect_start = (0, 0)
         self.data_about_rect_end = (10, 10)
-        self.data_about_polygon = [(1, 1), (5, 5), (1, 11)]
+        self.data_about_polygon = [(1, 1), (1, 11), (5, 5)]
+        # self.data_about_polygon = [(10, 10), (10, 11), (11, 10)]
+        # self.data_about_polygon = [(10, 0), (8, 0), (11, 6)]
 
         self.parent = parent
         self.box = QtGui.QHBoxLayout()
@@ -434,10 +436,15 @@ class TaskScreen4(QtGui.QWidget):
 
     def recount(self):
         segments = []
+        points_of_interection = []
+        angle_points = []
         rect = [(self.data_about_rect_start, (self.data_about_rect_start[0], self.data_about_rect_end[1])),
                 ((self.data_about_rect_start[0], self.data_about_rect_end[1]), self.data_about_rect_end),
                 (self.data_about_rect_end, (self.data_about_rect_end[0], self.data_about_rect_start[1])),
                 ((self.data_about_rect_end[0], self.data_about_rect_start[1]), self.data_about_rect_start)]
+
+        rect_angles = [self.data_about_rect_start, (self.data_about_rect_start[0], self.data_about_rect_end[1]),
+                       self.data_about_rect_end,   (self.data_about_rect_end[0], self.data_about_rect_start[1])]
 
         for i in range(len(self.data_about_polygon)):
             if i + 1 == len(self.data_about_polygon):
@@ -449,31 +456,70 @@ class TaskScreen4(QtGui.QWidget):
                 (self.data_about_polygon[j][0], self.data_about_polygon[j][1])))
         for i in rect:
             for j in segments:
-                print(i, j)
-                print(are_crossing((i[0][0], i[0][1], 0), (i[1][0], i[1][1], 0), (j[0][0], j[0][1], 0), ((j[1][0]), j[1][1], 0)))
+                res = are_crossing((i[0][0], i[0][1], 0), (i[1][0], i[1][1], 0),
+                                   (j[0][0], j[0][1], 0), ((j[1][0]), j[1][1], 0))
+                if res:
+                    points_of_interection.append(res)
+        add_points(self.data_about_polygon, points_of_interection)
+        # print(points_of_interection)
 
+def add_points(polygon, points_of_interscert):
+    result = []
+    prev = polygon[-1]
+    data = {}
+    for elem in points_of_interscert:
+        s = data.get((elem[1], elem[2]), [])
+        if s:
+            s.append(elem[0])
+            data[(elem[1], elem[2])] = s
+        else:
+            s = data.get((elem[2], elem[1]), [])
+            s.append(elem[0])
+            data[(elem[2], elem[1])] = s
+    print(data)
+    for elem in polygon:
+        print(elem, prev)
+        result.append(prev)
+        s0 = data.get((prev, elem), None)
+        s1 = data.get((elem, prev), None)
+
+        if s0:
+            s = s0
+        else:
+            s = s1
+
+        if s:
+            result.extend(s)
+        prev = elem
+        print(result)
+
+
+def intersection(points, angle_points, rect, polygon):
+    pass
 
 def are_crossing(v11, v12, v21, v22):
     cut1 = difference(v12, v11)
     cut2 = difference(v22, v21)
 
-    prod1 = cross(cut1 , difference(v21, v11))
+    prod1 = cross(cut1, difference(v21, v11))
     prod2 = cross(cut1, difference(v22, v11))
 
-    if sign(prod1[2]) == sign(prod2[2]) or prod1[2] == 0 or prod2[2] == 0:
+    if sign(prod1[2]) == sign(prod2[2]):
+            #or prod1[2] == 0 or prod2[2] == 0:
         return None
 
     prod1 = cross(cut2 , difference(v11, v21))
     prod2 = cross(cut2, difference(v12, v21))
 
-    if sign(prod1[2]) == sign(prod2[2]) or prod1[2] == 0 or prod2[2] == 0:
+    if sign(prod1[2]) == sign(prod2[2]):
+            #or prod1[2] == 0 or prod2[2] == 0:
         return None
 
     result = [0, 0]
 
     result[0] = v11[0] + cut1[0]*abs(prod1[2])/abs(prod2[2] - prod1[2])
     result[1] = v11[1] + cut1[1]*abs(prod1[2])/abs(prod2[2] - prod1[2])
-    return result[0], result[1]
+    return [(result[0], result[1]), (v21[0], v21[1]), (v22[0], v22[1])]
 
 
 def cross(v1, v2):
@@ -482,7 +528,6 @@ def cross(v1, v2):
 
 def difference(v1, v2):
     return v1[0] - v2[0], v1[1] - v2[1], v1[2] - v2[2]
-
 
 
 class MyLineEdit4(QtGui.QLineEdit):
@@ -505,7 +550,8 @@ class MyLineEdit4(QtGui.QLineEdit):
 
     def _parseCoord(self, text):
         data = pattern.findall(text)
-        return data
+        data = map(lambda x: (int(x[0]), int(x[1])), data)
+        return list(data)
 
     def _parseRect(self, text):
         data = pattern.findall(text)
