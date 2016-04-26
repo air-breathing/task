@@ -479,6 +479,7 @@ def add_points(polygon, points_of_interscert):
             s.append(elem[0])
             data[(elem[2], elem[1])] = s
     for elem in polygon:
+        print(result, 'промежуточный результат добавления')
         result.append(prev)
         s0 = data.get((prev, elem), None)
         s1 = data.get((elem, prev), None)
@@ -493,6 +494,7 @@ def add_points(polygon, points_of_interscert):
             for i in s:
                 last = result[-1]
                 if i != last:
+                    print(i, 'добавление еще элемента')
                     result.append(i)
         prev = elem
     return result
@@ -524,7 +526,9 @@ def intersection(points, all_points, rect_angles, polygon):
     print(in_points)
     print(out_points)
     print(on_points)
-    print(angle_points)
+    on_points = list(set(on_points))
+    on_points = orderOnPoints(on_points, angles)
+    print(on_points, 'упорядоченные по часовой внешние точки')
 
     i = 10
     while len(used_out_points) < len(out_points) and i > 0:
@@ -541,80 +545,62 @@ def intersection(points, all_points, rect_angles, polygon):
                 break
         if start_search is None:
             return result
-        q1 = 10
+        q1 = 0
         current_i = (start_search + 1) % len(all_points)
         prev_i = start_search
         wait_last_on = False
         last_on = None
         while q1 > 0:
             # пока идем по внешним точкам
-            print(all_points[current_i], current_i, wait_last_on)
+            # print(all_points[current_i], current_i, wait_last_on)
             if all_points[current_i] in out_points:
-                if not wait_last_on:
-                    # просто идем по внешим
-                    used_out_points.append(all_points[current_i])
-                    circle.append(all_points[current_i])
-                else:
-                    # это первая внещняя, до этого были внутренние
-                    wait_last_on = False
-                    if last_on == all_points[prev_i]:
-                        # надо исключить весь прямоугольник
-                        # если точка угловая, то надо добавить угол, и по часовой стрелки от угла
-                        if last_on in angles:
-                            # как-то надо различать случаи
-                            ind_p = angles.index(last_on)
-                            for ind in range(4):
-                                right_ind = (ind + ind_p) % 4
-                                circle.append(angles[right_ind])
-                        else:
-                            # точка не угловая, но она единственная
-                            # установим, на какой стороне она лежит
-                            side = getSide(rect_angles, last_on)
-                            circle.append(last_on)
-                            ind_p = angles.index(side[1])
-                            for ind in range(4):
-                                right_ind = (ind + ind_p) % 4
-                                circle.append(angles[right_ind])
-                            circle.append(last_on)
+                if all_points[current_i] in out_points:
+                    pass
+                if all_points[current_i] in on_points:
+                    if all_points[current_i] in angle_points:
+                        pass
                     else:
-                        # точки различны,
-                        side1 = getSide(rect_angles, last_on)
-                        side2 = getSide(rect_angles, all_points[prev_i])
-                        print(side1, side2)
-                        if side1 == side2:
-                            circle.append(last_on)
-                            circle.append(all_points[prev_i])
-                        else:
-                            # по часовой
-                            circle.append(last_on)
-                            ind_p = angles.index(side1[1])
-                            for ind in range(4):
-                                right_ind = (ind + ind_p) % 4
-                                circle.append(angles[right_ind])
-                                if angles[right_ind] == side2[0]:
-                                    break
-                            circle.append(all_points[prev_i])
-
-
-            if all_points[current_i] in on_points:
-                if not wait_last_on:
-                    wait_last_on = True
-                    last_on = all_points[current_i]
-                else:
-                    # все внутри
-                    if last_on == all_points[current_i]:
-                        print('все точки внути')
-                        break
-            if current_i == start_search:
-                print('exit')
-                break
+                        pass
             q1 -= 1
             prev_i = current_i
             current_i = (current_i + 1) % len(all_points)
         result.append(circle)
-
     return result
 
+
+
+def orderOnPoints(on_points, angles):
+    left = []
+    right = []
+    bottom = []
+    above = []
+    was_add = False
+    for point in on_points:
+        was_add = False
+        # на верхней
+        if angles[0][0] == point[0] and not was_add:
+            left.append(point)
+            was_add = True
+        if angles[2][0] == point[0] and not was_add:
+            right.append(point)
+            was_add = True
+        if angles[0][1] == point[1] and not was_add:
+            above.append(point)
+            was_add = True
+        if angles[1][0] == point[1] and not was_add:
+            bottom.append(point)
+            was_add = True
+    result = []
+    left = sorted(left, key=lambda x: x[1], reverse=True)
+    bottom = sorted(bottom, key=lambda x: x[0], reverse=True)
+    right = sorted(right, key=lambda x: x[1])
+    above = sorted(above, key=lambda x: x[0])
+    print(left, bottom, right, above, sep='упорядоченность\n')
+    result.extend(above)
+    result.extend(right)
+    result.extend(bottom)
+    result.extend(left)
+    return result
 
 
 def check_in_rect(point, rect_angles):
