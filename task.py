@@ -389,9 +389,10 @@ class TaskScreen4(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent)
         self.data_about_rect_start = (0, 0)
         self.data_about_rect_end = (10, 10)
-        self.data_about_polygon = [(1, 1), (1, 11), (5, 5)]
+        # self.data_about_polygon = [(1, 1), (1, 11), (5, 5)]
         # self.data_about_polygon = [(10, 10), (10, 11), (11, 10)]
         # self.data_about_polygon = [(10, 0), (8, 0), (11, 6)]
+        self.data_about_polygon = [(9, -6), (8, 0), (11, 6)]
 
         self.parent = parent
         self.box = QtGui.QHBoxLayout()
@@ -460,8 +461,9 @@ class TaskScreen4(QtGui.QWidget):
                                    (j[0][0], j[0][1], 0), ((j[1][0]), j[1][1], 0))
                 if res:
                     points_of_interection.append(res)
-        add_points(self.data_about_polygon, points_of_interection)
-        # print(points_of_interection)
+        all_points = add_points(self.data_about_polygon, points_of_interection)
+        res = intersection(points_of_interection, all_points, rect_angles, self.data_about_polygon)
+        print(res)
 
 def add_points(polygon, points_of_interscert):
     result = []
@@ -476,9 +478,7 @@ def add_points(polygon, points_of_interscert):
             s = data.get((elem[2], elem[1]), [])
             s.append(elem[0])
             data[(elem[2], elem[1])] = s
-    print(data)
     for elem in polygon:
-        print(elem, prev)
         result.append(prev)
         s0 = data.get((prev, elem), None)
         s1 = data.get((elem, prev), None)
@@ -489,13 +489,174 @@ def add_points(polygon, points_of_interscert):
             s = s1
 
         if s:
-            result.extend(s)
+            # e = 0.000000000001
+            for i in s:
+                last = result[-1]
+                if i != last:
+                    result.append(i)
         prev = elem
-        print(result)
+    return result
 
 
-def intersection(points, angle_points, rect, polygon):
-    pass
+def intersection(points, all_points, rect_angles, polygon):
+    print(points)
+    print(all_points)
+    print(rect_angles)
+    print(polygon)
+    start_search = None
+    used_out_points = []
+    result = []
+    out_points = []
+    in_points = []
+    on_points = []
+    angle_points = []
+    angles = [rect_angles[0], rect_angles[3], rect_angles[2], rect_angles[1]]
+    # выделяем все внешние точки
+    for point in all_points:
+        if check_in_rect(point, rect_angles):
+            in_points.append(point)
+        if check_out_rect(point, rect_angles):
+            out_points.append(point)
+        if check_on_rect(point, rect_angles):
+            on_points.append(point)
+        if check_angle(point, rect_angles):
+            angle_points.append(point)
+    print(in_points)
+    print(out_points)
+    print(on_points)
+    print(angle_points)
+
+    i = 10
+    while len(used_out_points) < len(out_points) and i > 0:
+        circle = []
+        i -= 1
+        # ищем первую точку вне прямоугольника не использованную
+        start_search = None
+        for i in range(len(out_points)):
+            # если данная точка не использована при поиске
+            if not out_points in used_out_points:
+                start_search = all_points.index(out_points[i])
+                used_out_points.append(out_points[i])
+                circle.append(out_points[i])
+                break
+        if start_search is None:
+            return result
+        q1 = 10
+        current_i = (start_search + 1) % len(all_points)
+        prev_i = start_search
+        wait_last_on = False
+        last_on = None
+        while q1 > 0:
+            # пока идем по внешним точкам
+            print(all_points[current_i], current_i, wait_last_on)
+            if all_points[current_i] in out_points:
+                if not wait_last_on:
+                    # просто идем по внешим
+                    used_out_points.append(all_points[current_i])
+                    circle.append(all_points[current_i])
+                else:
+                    # это первая внещняя, до этого были внутренние
+                    wait_last_on = False
+                    if last_on == all_points[prev_i]:
+                        # надо исключить весь прямоугольник
+                        # если точка угловая, то надо добавить угол, и по часовой стрелки от угла
+                        if last_on in angles:
+                            # как-то надо различать случаи
+                            ind_p = angles.index(last_on)
+                            for ind in range(4):
+                                right_ind = (ind + ind_p) % 4
+                                circle.append(angles[right_ind])
+                        else:
+                            # точка не угловая, но она единственная
+                            # установим, на какой стороне она лежит
+                            side = getSide(rect_angles, last_on)
+                            circle.append(last_on)
+                            ind_p = angles.index(side[1])
+                            for ind in range(4):
+                                right_ind = (ind + ind_p) % 4
+                                circle.append(angles[right_ind])
+                            circle.append(last_on)
+                    else:
+                        # точки различны,
+                        side1 = getSide(rect_angles, last_on)
+                        side2 = getSide(rect_angles, all_points[prev_i])
+                        print(side1, side2)
+                        if side1 == side2:
+                            circle.append(last_on)
+                            circle.append(all_points[prev_i])
+                        else:
+                            # по часовой
+                            circle.append(last_on)
+                            ind_p = angles.index(side1[1])
+                            for ind in range(4):
+                                right_ind = (ind + ind_p) % 4
+                                circle.append(angles[right_ind])
+                                if angles[right_ind] == side2[0]:
+                                    break
+                            circle.append(all_points[prev_i])
+
+
+            if all_points[current_i] in on_points:
+                if not wait_last_on:
+                    wait_last_on = True
+                    last_on = all_points[current_i]
+                else:
+                    # все внутри
+                    if last_on == all_points[current_i]:
+                        print('все точки внути')
+                        break
+            if current_i == start_search:
+                print('exit')
+                break
+            q1 -= 1
+            prev_i = current_i
+            current_i = (current_i + 1) % len(all_points)
+        result.append(circle)
+
+    return result
+
+
+
+def check_in_rect(point, rect_angles):
+    if rect_angles[0][0] < point[0] and point[0] < rect_angles[2][0]:
+        if rect_angles[0][1] < point[1] and point[1] < rect_angles[1][1]:
+            return True
+    return False
+
+def getSide(rect_angles, point):
+    if rect_angles[0][0] == point[0]:
+        return (rect_angles[1], rect_angles[0])
+    elif rect_angles[0][1] == point[1]:
+        return (rect_angles[0], rect_angles[3])
+    elif rect_angles[2][0] == point[0]:
+        return (rect_angles[3], rect_angles[2])
+    elif rect_angles[2][1] == point[1]:
+        return (rect_angles[2], rect_angles[1])
+    else:
+        print('error in getSide')
+
+def check_out_rect(point, rect_angles):
+    if rect_angles[0][0] <= point[0] and point[0] <= rect_angles[2][0]:
+        if rect_angles[0][1] <= point[1] and point[1] <= rect_angles[1][1]:
+            return False
+    return True
+
+
+def check_on_rect(point, rect_angles):
+    if rect_angles[0][0] <= point[0] and point[0] <= rect_angles[2][0]:
+        if rect_angles[0][1] == point[1] or point[1] == rect_angles[1][1]:
+            return True
+    if rect_angles[0][1] <= point[1] and point[1] <= rect_angles[1][1]:
+        if rect_angles[0][0] == point[0] or point[0] == rect_angles[2][0]:
+            return True
+    return False
+
+def check_angle(point, rect_angles):
+    if rect_angles[0][0] == point[0] or point[0] == rect_angles[2][0]:
+        if rect_angles[0][1] == point[1] or point[1] == rect_angles[1][1]:
+            return True
+    return False
+
 
 def are_crossing(v11, v12, v21, v22):
     cut1 = difference(v12, v11)
