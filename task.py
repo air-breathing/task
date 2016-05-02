@@ -392,7 +392,9 @@ class TaskScreen4(QtGui.QWidget):
         # self.data_about_polygon = [(1, 1), (1, 11), (5, 5)]
         # self.data_about_polygon = [(10, 10), (10, 11), (11, 10)]
         # self.data_about_polygon = [(10, 0), (8, 0), (11, 6)]
-        self.data_about_polygon = [(9, -6), (8, 0), (11, 6)]
+        # self.data_about_polygon = [(9, -6), (8, 0), (11, 6)]
+        self.data_about_polygon = [(5, -5), (-3, 3), (13, 3)]
+
 
         self.parent = parent
         self.box = QtGui.QHBoxLayout()
@@ -439,11 +441,14 @@ class TaskScreen4(QtGui.QWidget):
         segments = []
         points_of_interection = []
         angle_points = []
-        rect = [(self.data_about_rect_start, (self.data_about_rect_start[0], self.data_about_rect_end[1])),
-                ((self.data_about_rect_start[0], self.data_about_rect_end[1]), self.data_about_rect_end),
-                (self.data_about_rect_end, (self.data_about_rect_end[0], self.data_about_rect_start[1])),
-                ((self.data_about_rect_end[0], self.data_about_rect_start[1]), self.data_about_rect_start)]
-
+        #rect = [(self.data_about_rect_start, (self.data_about_rect_start[0], self.data_about_rect_end[1])),
+        #        ((self.data_about_rect_start[0], self.data_about_rect_end[1]), self.data_about_rect_end),
+        #        (self.data_about_rect_end, (self.data_about_rect_end[0], self.data_about_rect_start[1])),
+        #        ((self.data_about_rect_end[0], self.data_about_rect_start[1]), self.data_about_rect_start)]
+        rect = [(self.data_about_rect_start, (self.data_about_rect_end[1], self.data_about_rect_start[0])),
+                ((self.data_about_rect_end[1], self.data_about_rect_start[0]), self.data_about_rect_end),
+                (self.data_about_rect_end, (self.data_about_rect_start[1], self.data_about_rect_end[0])),
+                ((self.data_about_rect_start[1], self.data_about_rect_end[0]), self.data_about_rect_start)]
         rect_angles = [self.data_about_rect_start, (self.data_about_rect_start[0], self.data_about_rect_end[1]),
                        self.data_about_rect_end,   (self.data_about_rect_end[0], self.data_about_rect_start[1])]
 
@@ -460,44 +465,91 @@ class TaskScreen4(QtGui.QWidget):
                 res = are_crossing((i[0][0], i[0][1], 0), (i[1][0], i[1][1], 0),
                                    (j[0][0], j[0][1], 0), ((j[1][0]), j[1][1], 0))
                 if res:
+                    print(res, 'res')
                     points_of_interection.append(res)
-        all_points = add_points(self.data_about_polygon, points_of_interection)
-        res = intersection(points_of_interection, all_points, rect_angles, self.data_about_polygon)
-        print(res)
+        if points_of_interection:
+            all_points = add_points(self.data_about_polygon, points_of_interection, rect_angles)
+            print(all_points, 'all_points')
+            # res = intersection(points_of_interection, all_points, rect_angles, self.data_about_polygon)
+            on_points = getOnPoints(all_points, rect_angles)
+            out_points = getOutPoints(all_points, rect_angles)
+            print(on_points, 'on_point')
+            print(out_points, 'out_point')
+            res = searchInterection(all_points, on_points, out_points)
+            print(res)
+        else:
+            print('не пересекается')
 
-def add_points(polygon, points_of_interscert):
+def searchInterection(all_points, on_points, out_points):
+    used_points = []
+
+    return  all_points
+
+def getOnPoints(points, rect_angles):
+    res = []
+    for point in points:
+        print(point[0])
+        if check_on_rect(point[0], rect_angles):
+           res.append(point)
+    return res
+
+def getOutPoints(points, rect_angles):
+    res = []
+    for point in points:
+        print(point[0])
+        if check_out_rect(point[0], rect_angles):
+           res.append(point)
+    return res
+
+
+def add_points(polygon, points_of_interscert, angles):
     result = []
     prev = polygon[-1]
     data = {}
+    #print(points_of_interscert, 'points of interection')
     for elem in points_of_interscert:
-        s = data.get((elem[1], elem[2]), [])
+        s = data.get((elem[1], elem[2]), set())
         if s:
-            s.append(elem[0])
+            s.add((elem[0], (elem[1], elem[2]) ,(elem[3], elem[4])))
             data[(elem[1], elem[2])] = s
         else:
-            s = data.get((elem[2], elem[1]), [])
-            s.append(elem[0])
+            s = data.get((elem[2], elem[1]), set())
+            s.add((elem[0], (elem[1], elem[2]),(elem[3], elem[4])))
             data[(elem[2], elem[1])] = s
+    # сортировка
+    for k in data.keys():
+        new_order = sorted(data[k], key=lambda x: x[0][0]**2 + x[0][1]**2)
+        data[k] = new_order
+    #print(data, 'data')
     for elem in polygon:
-        print(result, 'промежуточный результат добавления')
-        result.append(prev)
+        #print(result, 'промежуточный результат добавления')
+        #print(elem, 'текущий угол многоугольника')
+        result.append((prev, ))
         s0 = data.get((prev, elem), None)
         s1 = data.get((elem, prev), None)
-
         if s0:
             s = s0
         else:
             s = s1
-
         if s:
-            # e = 0.000000000001
             for i in s:
                 last = result[-1]
                 if i != last:
-                    print(i, 'добавление еще элемента')
+                    #print(i, 'добавление еще элемента')
                     result.append(i)
         prev = elem
     return result
+
+
+def compare(i, j):
+    print(i,'i')
+    print(j, 'j')
+    if (len(i) == len(j)):
+        if (i[0] == j[0] and i[1][0] == j[1][0] and i[1][1] == j[1][1] and
+                    i[2][0] == j[2][0] and i[2][1] == j[2][1]):
+            return True
+    return False
+
 
 
 def intersection(points, all_points, rect_angles, polygon):
@@ -566,8 +618,6 @@ def intersection(points, all_points, rect_angles, polygon):
             current_i = (current_i + 1) % len(all_points)
         result.append(circle)
     return result
-
-
 
 def orderOnPoints(on_points, angles):
     left = []
@@ -664,9 +714,9 @@ def are_crossing(v11, v12, v21, v22):
 
     result = [0, 0]
 
-    result[0] = v11[0] + cut1[0]*abs(prod1[2])/abs(prod2[2] - prod1[2])
-    result[1] = v11[1] + cut1[1]*abs(prod1[2])/abs(prod2[2] - prod1[2])
-    return [(result[0], result[1]), (v21[0], v21[1]), (v22[0], v22[1])]
+    result[0] = (v11[0]*abs(prod2[2] - prod1[2]) + cut1[0]*abs(prod1[2]))/abs(prod2[2] - prod1[2])
+    result[1] = (v11[1]*abs(prod2[2] - prod1[2]) + cut1[1]*abs(prod1[2]))/abs(prod2[2] - prod1[2])
+    return [(result[0], result[1]), (v21[0],v21[1]), (v22[0],v22[1]), (v11[0],v11[1]), (v12[0],v12[1])]
 
 
 def cross(v1, v2):
