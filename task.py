@@ -4,7 +4,7 @@ from PyQt4 import QtGui, QtCore
 import sys
 import re
 
-
+id = QtCore.QMetaType.type('text')
 min_size_x = 300
 min_size_y = 200
 min_size_x_f = 150
@@ -389,12 +389,12 @@ class TaskScreen4(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent)
         self.data_about_rect_start = (0, 0)
         self.data_about_rect_end = (10, 10)
-        # self.data_about_polygon = [(1, 1), (1, 11), (5, 5)]
+        self.data_about_polygon = [(1, 1), (1, 11), (5, 5)]
         # self.data_about_polygon = [(10, 10), (10, 11), (11, 10)]
         # self.data_about_polygon = [(10, 0), (8, 0), (11, 6)]
         # self.data_about_polygon = [(9, -6), (8, 0), (11, 6)]
-        self.data_about_polygon = [(5, -5), (-3, 3), (13, 3)]
-
+        # self.data_about_polygon = [(5, -5), (-3, 3), (13, 3)]
+        # self.data_about_polygon =  [(-1, -5), (-1, 2), (11, 2), (11, -5)]
 
         self.parent = parent
         self.box = QtGui.QHBoxLayout()
@@ -409,6 +409,9 @@ class TaskScreen4(QtGui.QWidget):
 
         self.labelC = QtGui.QLabel(self)
         self.labelC.setText('В формате (10, 10), (10, 10), по часовой стрелки перечислите все углы многоугольника')
+
+        self.labelD = QtGui.QLabel(self)
+        self.labelD.setText('Результат')
 
         self.button = QtGui.QPushButton('Пересчитать', self)
         self.connect(self.button, QtCore.SIGNAL('clicked()'), self.recount)
@@ -425,6 +428,9 @@ class TaskScreen4(QtGui.QWidget):
         self.dataBox3 = MyLineEdit4(self, self.data_about_polygon, 3)
         self.dataBox3.setMaximumSize(200, 40)
 
+        self.dataBox4 = MyLineEdit4(self, '', 4)
+        self.dataBox4.setMaximumSize(200, 100)
+
         self.labelA.setBuddy(self.dataBox1)
         self.labelB.setBuddy(self.dataBox2)
         self.labelC.setBuddy(self.dataBox3)
@@ -434,17 +440,14 @@ class TaskScreen4(QtGui.QWidget):
         self.boxLeft.addWidget(self.dataBox2)
         self.boxLeft.addWidget(self.labelC)
         self.boxLeft.addWidget(self.dataBox3)
+        self.boxLeft.addWidget(self.labelD)
+        self.boxLeft.addWidget(self.dataBox4)
         self.boxLeft.addWidget(self.button)
         self.setLayout(self.box)
 
     def recount(self):
         segments = []
         points_of_interection = []
-        angle_points = []
-        #rect = [(self.data_about_rect_start, (self.data_about_rect_start[0], self.data_about_rect_end[1])),
-        #        ((self.data_about_rect_start[0], self.data_about_rect_end[1]), self.data_about_rect_end),
-        #        (self.data_about_rect_end, (self.data_about_rect_end[0], self.data_about_rect_start[1])),
-        #        ((self.data_about_rect_end[0], self.data_about_rect_start[1]), self.data_about_rect_start)]
         rect = [(self.data_about_rect_start, (self.data_about_rect_end[1], self.data_about_rect_start[0])),
                 ((self.data_about_rect_end[1], self.data_about_rect_start[0]), self.data_about_rect_end),
                 (self.data_about_rect_end, (self.data_about_rect_start[1], self.data_about_rect_end[0])),
@@ -467,39 +470,115 @@ class TaskScreen4(QtGui.QWidget):
                 if res:
                     print(res, 'res')
                     points_of_interection.append(res)
-        if points_of_interection:
+        if len(set(x[0] for x in points_of_interection)) > 1:
             all_points = add_points(self.data_about_polygon, points_of_interection, rect_angles)
-            print(all_points, 'all_points')
-            # res = intersection(points_of_interection, all_points, rect_angles, self.data_about_polygon)
             on_points = getOnPoints(all_points, rect_angles)
             out_points = getOutPoints(all_points, rect_angles)
-            print(on_points, 'on_point')
-            print(out_points, 'out_point')
-            res = searchInterection(all_points, on_points, out_points)
+            res = searchInterection(all_points, on_points, out_points, rect_angles)
             print(res)
+            self.emit(QtCore.SIGNAL('recount(PyQt_PyObject)'), str(res))
         else:
-            print('не пересекается')
+            print('не пересекается либо всего одна общая точка')
+            self.emit(QtCore.SIGNAL('recount(PyQt_PyObject)'), 'не пересекается либо всего одна общая точка')
 
-def searchInterection(all_points, on_points, out_points):
-    used_points = []
 
-    return  all_points
+def searchInterection(all_points, on_points, out_points, rect_angles):
+    unused_points = out_points
+    res = []
+    name_points = [x[0] for x in all_points]
+    angles = [rect_angles[0], rect_angles[3], rect_angles[2], rect_angles[1]]
+    print(name_points, 'name_points')
+    on_points_ordered = orderOnPoints(on_points, angles)
+    print(on_points_ordered, 'on_points_ordered')
+    x = 0
+    while x < 100 and unused_points:
+        r = searchComponent(name_points, on_points_ordered, unused_points)
+        x += 1
+        res.append(r)
+    return res
+
+
+def searchComponent(name_points, on_points, unused_points):
+    elem = unused_points.pop(0)
+    i = name_points.index(elem)
+    res = [name_points[i]]
+    i = (i + 1)%len(name_points)
+    x = 0
+    # пробегаем внешние точки
+    while x < 100 and name_points[i] != elem and name_points[i] in unused_points:
+        res.append(name_points[i])
+        unused_points.remove(name_points[i])
+        i = (i + 1)%len(name_points)
+        x += 1
+    print(on_points)
+    res.append(name_points[i])
+    on_index = on_points.index(name_points[i])
+    on_index = (on_index + 1)% len(on_points)
+    i = name_points.index(on_points[on_index])
+    res.append(name_points[i])
+    i = (i + 1)%len(name_points)
+    x = 0
+    # пробегаем внешние точки
+    while x < 100 and name_points[i] != elem and name_points[i] in unused_points:
+        print(i, 'i')
+        res.append(name_points[i])
+        unused_points.remove(name_points[i])
+        i = (i + 1)%len(name_points)
+        x += 1
+    print(res, 'result')
+    return res
+
 
 def getOnPoints(points, rect_angles):
-    res = []
+    res = set()
     for point in points:
         print(point[0])
         if check_on_rect(point[0], rect_angles):
-           res.append(point)
-    return res
+           res.add(point[0])
+    return list(res)
+
 
 def getOutPoints(points, rect_angles):
     res = []
     for point in points:
         print(point[0])
         if check_out_rect(point[0], rect_angles):
-           res.append(point)
+           res.append(point[0])
     return res
+
+
+def orderOnPoints(on_points, angles):
+    left = []
+    right = []
+    bottom = []
+    above = []
+    was_add = False
+    for point in on_points:
+        was_add = False
+        # на верхней
+        if angles[0][0] == point[0] and not was_add:
+            left.append(point)
+            was_add = True
+        if angles[2][0] == point[0] and not was_add:
+            right.append(point)
+            was_add = True
+        if angles[0][1] == point[1] and not was_add:
+            above.append(point)
+            was_add = True
+        if angles[1][0] == point[1] and not was_add:
+            bottom.append(point)
+            was_add = True
+    result = []
+    left = sorted(left, key=lambda x: x[1], reverse=True)
+    bottom = sorted(bottom, key=lambda x: x[0], reverse=True)
+    right = sorted(right, key=lambda x: x[1])
+    above = sorted(above, key=lambda x: x[0])
+    print(left, bottom, right, above, sep='упорядоченность\n')
+    result.extend(above)
+    result.extend(right)
+    result.extend(bottom)
+    result.extend(left)
+    return result
 
 
 def add_points(polygon, points_of_interscert, angles):
@@ -551,113 +630,12 @@ def compare(i, j):
     return False
 
 
-
-def intersection(points, all_points, rect_angles, polygon):
-    print(points)
-    print(all_points)
-    print(rect_angles)
-    print(polygon)
-    start_search = None
-    used_out_points = []
-    result = []
-    out_points = []
-    in_points = []
-    on_points = []
-    angle_points = []
-    angles = [rect_angles[0], rect_angles[3], rect_angles[2], rect_angles[1]]
-    # выделяем все внешние точки
-    for point in all_points:
-        if check_in_rect(point, rect_angles):
-            in_points.append(point)
-        if check_out_rect(point, rect_angles):
-            out_points.append(point)
-        if check_on_rect(point, rect_angles):
-            on_points.append(point)
-        if check_angle(point, rect_angles):
-            angle_points.append(point)
-    print(in_points)
-    print(out_points)
-    print(on_points)
-    on_points = list(set(on_points))
-    on_points = orderOnPoints(on_points, angles)
-    print(on_points, 'упорядоченные по часовой внешние точки')
-
-    i = 10
-    while len(used_out_points) < len(out_points) and i > 0:
-        circle = []
-        i -= 1
-        # ищем первую точку вне прямоугольника не использованную
-        start_search = None
-        for i in range(len(out_points)):
-            # если данная точка не использована при поиске
-            if not out_points in used_out_points:
-                start_search = all_points.index(out_points[i])
-                used_out_points.append(out_points[i])
-                circle.append(out_points[i])
-                break
-        if start_search is None:
-            return result
-        q1 = 0
-        current_i = (start_search + 1) % len(all_points)
-        prev_i = start_search
-        wait_last_on = False
-        last_on = None
-        while q1 > 0:
-            # пока идем по внешним точкам
-            # print(all_points[current_i], current_i, wait_last_on)
-            if all_points[current_i] in out_points:
-                if all_points[current_i] in out_points:
-                    pass
-                if all_points[current_i] in on_points:
-                    if all_points[current_i] in angle_points:
-                        pass
-                    else:
-                        pass
-            q1 -= 1
-            prev_i = current_i
-            current_i = (current_i + 1) % len(all_points)
-        result.append(circle)
-    return result
-
-def orderOnPoints(on_points, angles):
-    left = []
-    right = []
-    bottom = []
-    above = []
-    was_add = False
-    for point in on_points:
-        was_add = False
-        # на верхней
-        if angles[0][0] == point[0] and not was_add:
-            left.append(point)
-            was_add = True
-        if angles[2][0] == point[0] and not was_add:
-            right.append(point)
-            was_add = True
-        if angles[0][1] == point[1] and not was_add:
-            above.append(point)
-            was_add = True
-        if angles[1][0] == point[1] and not was_add:
-            bottom.append(point)
-            was_add = True
-    result = []
-    left = sorted(left, key=lambda x: x[1], reverse=True)
-    bottom = sorted(bottom, key=lambda x: x[0], reverse=True)
-    right = sorted(right, key=lambda x: x[1])
-    above = sorted(above, key=lambda x: x[0])
-    print(left, bottom, right, above, sep='упорядоченность\n')
-    result.extend(above)
-    result.extend(right)
-    result.extend(bottom)
-    result.extend(left)
-    return result
-
-
 def check_in_rect(point, rect_angles):
     if rect_angles[0][0] < point[0] and point[0] < rect_angles[2][0]:
         if rect_angles[0][1] < point[1] and point[1] < rect_angles[1][1]:
             return True
     return False
+
 
 def getSide(rect_angles, point):
     if rect_angles[0][0] == point[0]:
@@ -670,6 +648,7 @@ def getSide(rect_angles, point):
         return (rect_angles[2], rect_angles[1])
     else:
         print('error in getSide')
+
 
 def check_out_rect(point, rect_angles):
     if rect_angles[0][0] <= point[0] and point[0] <= rect_angles[2][0]:
@@ -686,6 +665,7 @@ def check_on_rect(point, rect_angles):
         if rect_angles[0][0] == point[0] or point[0] == rect_angles[2][0]:
             return True
     return False
+
 
 def check_angle(point, rect_angles):
     if rect_angles[0][0] == point[0] or point[0] == rect_angles[2][0]:
@@ -732,7 +712,10 @@ class MyLineEdit4(QtGui.QLineEdit):
         QtGui.QLineEdit.__init__(self)
         self.num = num
         self.parent = parent
-        parent.connect(self, QtCore.SIGNAL('editingFinished()'), self._change)
+        if num != 4:
+            parent.connect(self, QtCore.SIGNAL('editingFinished()'), self._change)
+        else:
+            self.connect(parent, QtCore.SIGNAL('recount(PyQt_PyObject)'), self._result)
         self.setText(str(data))
 
     def _change(self):
@@ -744,6 +727,10 @@ class MyLineEdit4(QtGui.QLineEdit):
             self.parent.data_about_rect_end = self._parseRect(self.text())
         elif self.num == 3:
             self.parent.data_about_polygon = self._parseCoord(self.text())
+
+    def _result(self, text):
+        print(text, 'fdf')
+        self.setText(str(text))
 
     def _parseCoord(self, text):
         data = pattern.findall(text)
